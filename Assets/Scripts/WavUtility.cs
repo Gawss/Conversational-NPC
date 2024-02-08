@@ -2,6 +2,7 @@
 using System.Text;
 using System.IO;
 using System;
+using System.Threading.Tasks;
 
 /// <summary>
 /// WAV utility for recording and audio playback functions in Unity.
@@ -191,13 +192,13 @@ public class WavUtility
 
 	#endregion
 
-	public static byte[] FromAudioClip(AudioClip audioClip)
+	public static async Task<byte[]> FromAudioClip(AudioClip audioClip)
 	{
-		string file;
-		return FromAudioClip(audioClip, out file, false);
+		string file = "";
+		return await FromAudioClip(audioClip, file, false);
 	}
 
-	public static byte[] FromAudioClip(AudioClip audioClip, out string filepath, bool saveAsFile = true, string dirname = "recordings")
+	public static async Task<byte[]> FromAudioClip(AudioClip audioClip, string filepath, bool saveAsFile = true, string dirname = "recordings")
 	{
 		MemoryStream stream = new MemoryStream();
 
@@ -213,11 +214,11 @@ public class WavUtility
 		int fileSize = audioClip.samples * BlockSize_16Bit + headerSize; // BlockSize (bitDepth)
 
 		// chunk descriptor (riff)
-		WriteFileHeader(ref stream, fileSize);
+		await WriteFileHeader(stream, fileSize);
 		// file header (fmt)
-		WriteFileFormat(ref stream, audioClip.channels, audioClip.frequency, bitDepth);
+		await WriteFileFormat(stream, audioClip.channels, audioClip.frequency, bitDepth);
 		// data chunks (data)
-		WriteFileData(ref stream, audioClip, bitDepth);
+		await WriteFileData(stream, audioClip, bitDepth);
 
 		byte[] bytes = stream.ToArray();
 
@@ -227,9 +228,13 @@ public class WavUtility
 		// Save file to persistant storage location
 		if (saveAsFile)
 		{
-			filepath = string.Format("{0}/{1}/{2}.{3}", Application.streamingAssetsPath, dirname, DateTime.UtcNow.ToString("yyMMdd-HHmmss-fff"), "wav");
-			Directory.CreateDirectory(Path.GetDirectoryName(filepath));
-			File.WriteAllBytes(filepath, bytes);
+			// filepath = string.Format("{0}/{1}/{2}.{3}", Application.streamingAssetsPath, dirname, DateTime.UtcNow.ToString("yyMMdd-HHmmss-fff"), "wav");
+			filepath = Application.streamingAssetsPath + "/" + dirname + "/recorded.wav";
+			await Task.Run(() => Directory.CreateDirectory(Path.GetDirectoryName(filepath)));
+
+			Debug.Log("Writing audioclip...");
+			await File.WriteAllBytesAsync(filepath, bytes);
+			Debug.Log("File has been written");
 			//Debug.Log ("Auto-saved .wav file: " + filepath);
 		}
 		else
@@ -244,21 +249,21 @@ public class WavUtility
 
 	#region write .wav file functions
 
-	private static int WriteFileHeader(ref MemoryStream stream, int fileSize)
+	private static async Task<int> WriteFileHeader(MemoryStream stream, int fileSize)
 	{
 		int count = 0;
 		int total = 12;
 
 		// riff chunk id
 		byte[] riff = Encoding.ASCII.GetBytes("RIFF");
-		count += WriteBytesToMemoryStream(ref stream, riff, "ID");
+		count += await WriteBytesToMemoryStream(stream, riff, "ID");
 
 		// riff chunk size
 		int chunkSize = fileSize - 8; // total size - 8 for the other two fields in the header
-		count += WriteBytesToMemoryStream(ref stream, BitConverter.GetBytes(chunkSize), "CHUNK_SIZE");
+		count += await WriteBytesToMemoryStream(stream, BitConverter.GetBytes(chunkSize), "CHUNK_SIZE");
 
 		byte[] wave = Encoding.ASCII.GetBytes("WAVE");
-		count += WriteBytesToMemoryStream(ref stream, wave, "FORMAT");
+		count += await WriteBytesToMemoryStream(stream, wave, "FORMAT");
 
 		// Validate header
 		Debug.AssertFormat(count == total, "Unexpected wav descriptor byte count: {0} == {1}", count, total);
@@ -266,32 +271,32 @@ public class WavUtility
 		return count;
 	}
 
-	private static int WriteFileFormat(ref MemoryStream stream, int channels, int sampleRate, UInt16 bitDepth)
+	private static async Task<int> WriteFileFormat(MemoryStream stream, int channels, int sampleRate, UInt16 bitDepth)
 	{
 		int count = 0;
 		int total = 24;
 
 		byte[] id = Encoding.ASCII.GetBytes("fmt ");
-		count += WriteBytesToMemoryStream(ref stream, id, "FMT_ID");
+		count += await WriteBytesToMemoryStream(stream, id, "FMT_ID");
 
 		int subchunk1Size = 16; // 24 - 8
-		count += WriteBytesToMemoryStream(ref stream, BitConverter.GetBytes(subchunk1Size), "SUBCHUNK_SIZE");
+		count += await WriteBytesToMemoryStream(stream, BitConverter.GetBytes(subchunk1Size), "SUBCHUNK_SIZE");
 
 		UInt16 audioFormat = 1;
-		count += WriteBytesToMemoryStream(ref stream, BitConverter.GetBytes(audioFormat), "AUDIO_FORMAT");
+		count += await WriteBytesToMemoryStream(stream, BitConverter.GetBytes(audioFormat), "AUDIO_FORMAT");
 
 		UInt16 numChannels = Convert.ToUInt16(channels);
-		count += WriteBytesToMemoryStream(ref stream, BitConverter.GetBytes(numChannels), "CHANNELS");
+		count += await WriteBytesToMemoryStream(stream, BitConverter.GetBytes(numChannels), "CHANNELS");
 
-		count += WriteBytesToMemoryStream(ref stream, BitConverter.GetBytes(sampleRate), "SAMPLE_RATE");
+		count += await WriteBytesToMemoryStream(stream, BitConverter.GetBytes(sampleRate), "SAMPLE_RATE");
 
 		int byteRate = sampleRate * channels * BytesPerSample(bitDepth);
-		count += WriteBytesToMemoryStream(ref stream, BitConverter.GetBytes(byteRate), "BYTE_RATE");
+		count += await WriteBytesToMemoryStream(stream, BitConverter.GetBytes(byteRate), "BYTE_RATE");
 
 		UInt16 blockAlign = Convert.ToUInt16(channels * BytesPerSample(bitDepth));
-		count += WriteBytesToMemoryStream(ref stream, BitConverter.GetBytes(blockAlign), "BLOCK_ALIGN");
+		count += await WriteBytesToMemoryStream(stream, BitConverter.GetBytes(blockAlign), "BLOCK_ALIGN");
 
-		count += WriteBytesToMemoryStream(ref stream, BitConverter.GetBytes(bitDepth), "BITS_PER_SAMPLE");
+		count += await WriteBytesToMemoryStream(stream, BitConverter.GetBytes(bitDepth), "BITS_PER_SAMPLE");
 
 		// Validate format
 		Debug.AssertFormat(count == total, "Unexpected wav fmt byte count: {0} == {1}", count, total);
@@ -299,7 +304,7 @@ public class WavUtility
 		return count;
 	}
 
-	private static int WriteFileData(ref MemoryStream stream, AudioClip audioClip, UInt16 bitDepth)
+	private static async Task<int> WriteFileData(MemoryStream stream, AudioClip audioClip, UInt16 bitDepth)
 	{
 		int count = 0;
 		int total = 8;
@@ -308,19 +313,19 @@ public class WavUtility
 		float[] data = new float[audioClip.samples * audioClip.channels];
 		audioClip.GetData(data, 0);
 
-		byte[] bytes = ConvertAudioClipDataToInt16ByteArray(data);
+		byte[] bytes = await ConvertAudioClipDataToInt16ByteArray(data);
 
 		byte[] id = Encoding.ASCII.GetBytes("data");
-		count += WriteBytesToMemoryStream(ref stream, id, "DATA_ID");
+		count += await WriteBytesToMemoryStream(stream, id, "DATA_ID");
 
 		int subchunk2Size = Convert.ToInt32(audioClip.samples * BlockSize_16Bit); // BlockSize (bitDepth)
-		count += WriteBytesToMemoryStream(ref stream, BitConverter.GetBytes(subchunk2Size), "SAMPLES");
+		count += await WriteBytesToMemoryStream(stream, BitConverter.GetBytes(subchunk2Size), "SAMPLES");
 
 		// Validate header
 		Debug.AssertFormat(count == total, "Unexpected wav data id byte count: {0} == {1}", count, total);
 
 		// Write bytes to stream
-		count += WriteBytesToMemoryStream(ref stream, bytes, "DATA");
+		count += await WriteBytesToMemoryStream(stream, bytes, "DATA");
 
 		// Validate audio data
 		Debug.AssertFormat(bytes.Length == subchunk2Size, "Unexpected AudioClip to wav subchunk2 size: {0} == {1}", bytes.Length, subchunk2Size);
@@ -328,7 +333,7 @@ public class WavUtility
 		return count;
 	}
 
-	private static byte[] ConvertAudioClipDataToInt16ByteArray(float[] data)
+	private static async Task<byte[]> ConvertAudioClipDataToInt16ByteArray(float[] data)
 	{
 		MemoryStream dataStream = new MemoryStream();
 
@@ -339,7 +344,7 @@ public class WavUtility
 		int i = 0;
 		while (i < data.Length)
 		{
-			dataStream.Write(BitConverter.GetBytes(Convert.ToInt16(data[i] * maxValue)), 0, x);
+			await dataStream.WriteAsync(BitConverter.GetBytes(Convert.ToInt16(data[i] * maxValue)), 0, x);
 			++i;
 		}
 		byte[] bytes = dataStream.ToArray();
@@ -352,10 +357,12 @@ public class WavUtility
 		return bytes;
 	}
 
-	private static int WriteBytesToMemoryStream(ref MemoryStream stream, byte[] bytes, string tag = "")
+	private static async Task<int> WriteBytesToMemoryStream(MemoryStream stream, byte[] bytes, string tag = "")
 	{
 		int count = bytes.Length;
-		stream.Write(bytes, 0, count);
+		await stream.WriteAsync(bytes, 0, count);
+
+
 		//Debug.LogFormat ("WAV:{0} wrote {1} bytes.", tag, count);
 		return count;
 	}

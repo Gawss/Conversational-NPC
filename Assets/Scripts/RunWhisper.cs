@@ -7,6 +7,7 @@ using Newtonsoft.Json;
 using System.Text;
 using UnityEngine.Networking;
 using System;
+using System.Threading.Tasks;
 
 /*
  *              Whisper Inference Code
@@ -71,18 +72,25 @@ public class RunWhisper : MonoBehaviour
 
     public Action<string> OnTranscriptFinished;
 
-    public void AudioClip2String(string audioclipPath)
+    Model decoder;
+    Model encoder;
+    Model spectro;
+
+    private void Start()
+    {
+        decoder = ModelLoader.Load(Application.streamingAssetsPath + "/Whisper/AudioDecoder_Tiny.sentis");
+        encoder = ModelLoader.Load(Application.streamingAssetsPath + "/Whisper/AudioEncoder_Tiny.sentis");
+        spectro = ModelLoader.Load(Application.streamingAssetsPath + "/Whisper/LogMelSepctro.sentis");
+    }
+
+    public async void AudioClip2String(string audioclipPath)
     {
         allocator = new TensorCachingAllocator();
         ops = WorkerFactory.CreateOps(backend, allocator);
 
         SetupWhiteSpaceShifts();
 
-        GetTokens();
-
-        Model decoder = ModelLoader.Load(Application.streamingAssetsPath + "/Whisper/AudioDecoder_Tiny.sentis");
-        Model encoder = ModelLoader.Load(Application.streamingAssetsPath + "/Whisper/AudioEncoder_Tiny.sentis");
-        Model spectro = ModelLoader.Load(Application.streamingAssetsPath + "/Whisper/LogMelSepctro.sentis");
+        await GetTokens();
 
         decoderEngine = WorkerFactory.CreateWorker(backend, decoder);
         encoderEngine = WorkerFactory.CreateWorker(backend, encoder);
@@ -142,10 +150,10 @@ public class RunWhisper : MonoBehaviour
     }
 
 
-    void GetTokens()
+    async Task GetTokens()
     {
-        var jsonText = File.ReadAllText(Application.streamingAssetsPath + "/Whisper/vocab.json");
-        var vocab = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, int>>(jsonText);
+        var jsonText = await File.ReadAllTextAsync(Application.streamingAssetsPath + "/Whisper/vocab.json");
+        var vocab = JsonConvert.DeserializeObject<Dictionary<string, int>>(jsonText);
         tokens = new string[vocab.Count];
         foreach (var item in vocab)
         {

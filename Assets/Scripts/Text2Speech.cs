@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Unity.Sentis;
 using UnityEngine;
 
@@ -25,6 +26,10 @@ namespace Univrse.Demo.NPC
 
         public Action<string> OnClipCreated;
 
+        public bool saveAudio = false;
+        public AudioClip generatedAudioClip;
+        IWorker engine;
+
         private void Awake()
         {
             tokenizerRunner = new TokenizerRunner();
@@ -39,8 +44,14 @@ namespace Univrse.Demo.NPC
 
         }
 
+        private void OnDestroy()
+        {
+            engine?.Dispose();
+        }
+
         public void GenerateAudioClip(string voiceMSG)
         {
+            Debug.Log("Generating Audio Clip...");
             // Convert input text to tensor.
             var tokenizedOutput = tokenizerRunner.ExecuteTokenizer(voiceMSG);
             var tokenList = tokenizedOutput.Split(' ').ToList();
@@ -56,15 +67,16 @@ namespace Univrse.Demo.NPC
             using var input = new TensorInt(inputShape, inputValues);
 
             // Setup engine of given worker type and model.
-            using var engine = WorkerFactory.CreateWorker(backendType, model);
+            engine = WorkerFactory.CreateWorker(backendType, model);
             engine.SetInput("text", input);
             engine.Execute();
 
             // Get output and cast to the appropriate tensor type (e.g. TensorFloat).
             var output = engine.PeekOutput() as TensorFloat;
 
-            AudioClip audioClip = CovertToAudioClip(output);
-            SaveToStreamingAssets(audioClip);
+            generatedAudioClip = CovertToAudioClip(output);
+            if (saveAudio) SaveToStreamingAssets(generatedAudioClip);
+            else OnClipCreated?.Invoke(Path.Combine(Application.streamingAssetsPath, "output.wav"));
 
             Debug.Log("Success!");
         }
@@ -101,47 +113,84 @@ namespace Univrse.Demo.NPC
             return audioClip;
         }
 
-        private void SaveToStreamingAssets(AudioClip audioClip)
+        private async void SaveToStreamingAssets(AudioClip audioClip)
         {
             // Ensure the StreamingAssets folder exists.
             string outputFolder = Application.streamingAssetsPath;
-            if (!Directory.Exists(outputFolder))
-            {
-                Directory.CreateDirectory(outputFolder);
-            }
 
-            SaveAudioClipToWav(audioClip, Path.Combine(Application.streamingAssetsPath, "output.wav"));
+            await Task.Run(() =>
+            {
+                if (!Directory.Exists(outputFolder)) Directory.CreateDirectory(outputFolder);
+            });
+
+            await SaveAudioClipToWavAsync(audioClip, Path.Combine(Application.streamingAssetsPath, "output.wav"));
+
+            // Invoke the callback on the main thread
+            OnClipCreated?.Invoke(Path.Combine(Application.streamingAssetsPath, "output.wav"));
         }
 
-        private void SaveAudioClipToWav(AudioClip clip, string filePath)
+        // private void SaveAudioClipToWav(AudioClip clip, string filePath)
+        // {
+        //     using var fileStream = new FileStream(filePath, FileMode.Create);
+        //     using var writer = new BinaryWriter(fileStream);
+
+        //     // Write WAV header.
+        //     writer.Write("RIFF".ToCharArray());
+        //     writer.Write(36 + clip.samples * 2);
+        //     writer.Write("WAVE".ToCharArray());
+        //     writer.Write("fmt ".ToCharArray());
+        //     writer.Write(16);
+        //     writer.Write((short)1);
+        //     writer.Write((short)clip.channels);
+        //     writer.Write(clip.frequency);
+        //     writer.Write(clip.frequency * clip.channels * 2);
+        //     writer.Write((short)(clip.channels * 2));
+        //     writer.Write((short)16);
+        //     writer.Write("data".ToCharArray());
+        //     writer.Write(clip.samples * clip.channels * 2);
+
+        //     // Write audio data.
+        //     float[] samples = new float[clip.samples * clip.channels];
+        //     clip.GetData(samples, 0);
+        //     for (int i = 0; i < samples.Length; i++)
+        //     {
+        //         writer.Write((short)(samples[i] * short.MaxValue));
+        //     }
+
+        //     OnClipCreated?.Invoke(filePath);
+        // }
+
+        private async Task SaveAudioClipToWavAsync(AudioClip clip, string filePath)
         {
-            using var fileStream = new FileStream(filePath, FileMode.Create);
-            using var writer = new BinaryWriter(fileStream);
-
-            // Write WAV header.
-            writer.Write("RIFF".ToCharArray());
-            writer.Write(36 + clip.samples * 2);
-            writer.Write("WAVE".ToCharArray());
-            writer.Write("fmt ".ToCharArray());
-            writer.Write(16);
-            writer.Write((short)1);
-            writer.Write((short)clip.channels);
-            writer.Write(clip.frequency);
-            writer.Write(clip.frequency * clip.channels * 2);
-            writer.Write((short)(clip.channels * 2));
-            writer.Write((short)16);
-            writer.Write("data".ToCharArray());
-            writer.Write(clip.samples * clip.channels * 2);
-
-            // Write audio data.
-            float[] samples = new float[clip.samples * clip.channels];
-            clip.GetData(samples, 0);
-            for (int i = 0; i < samples.Length; i++)
+            using (var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 4096, useAsync: true))
+            using (var writer = new BinaryWriter(fileStream))
             {
-                writer.Write((short)(samples[i] * short.MaxValue));
-            }
+                // Write WAV header.
+                writer.Write("RIFF".ToCharArray());
+                writer.Write(36 + clip.samples * 2);
+                writer.Write("WAVE".ToCharArray());
+                writer.Write("fmt ".ToCharArray());
+                writer.Write(16);
+                writer.Write((short)1);
+                writer.Write((short)clip.channels);
+                writer.Write(clip.frequency);
+                writer.Write(clip.frequency * clip.channels * 2);
+                writer.Write((short)(clip.channels * 2));
+                writer.Write((short)16);
+                writer.Write("data".ToCharArray());
+                writer.Write(clip.samples * clip.channels * 2);
 
-            OnClipCreated?.Invoke(filePath);
+                // Write audio data.
+                float[] samples = new float[clip.samples * clip.channels];
+                clip.GetData(samples, 0);
+
+                for (int i = 0; i < samples.Length; i++)
+                {
+                    // Write asynchronously using FileStream.WriteAsync
+                    byte[] buffer = BitConverter.GetBytes((short)(samples[i] * short.MaxValue));
+                    await fileStream.WriteAsync(buffer, 0, buffer.Length);
+                }
+            }
         }
     }
 }

@@ -96,7 +96,13 @@ namespace Univrse.Demo.NPC
 
         public void Talk(string audioClipPath)
         {
-            StartCoroutine(RequestAudiofile(audioClipPath));
+            if (GameManager.Instance.text2Speech.saveAudio) StartCoroutine(RequestAudiofile(audioClipPath));
+            else
+            {
+                audioClip = GameManager.Instance.text2Speech.generatedAudioClip;
+                audioSource.clip = audioClip;
+                audioSource.Play();
+            }
         }
 
         AudioClip audioClip;

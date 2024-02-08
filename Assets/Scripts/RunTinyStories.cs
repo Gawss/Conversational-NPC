@@ -6,6 +6,7 @@ using System.IO;
 using Newtonsoft.Json;
 using System.Text;
 using System;
+using System.Threading.Tasks;
 
 /*
  *              Tiny Stories Inference Code
@@ -85,6 +86,8 @@ public class RunTinyStories : MonoBehaviour
 
     public void GenerateStory(string prompt)
     {
+        totalTokens = 0;
+        currentToken = 0;
         outputString = prompt;
         DecodePrompt(outputString);
 
@@ -102,13 +105,14 @@ public class RunTinyStories : MonoBehaviour
 
     void RunInference()
     {
+        Debug.Log("Running inference...");
         using var tokensSoFar = new TensorInt(new TensorShape(1, maxTokens), outputTokens);
         engine.Execute(tokensSoFar);
 
         var tokensOut = engine.PeekOutput() as TensorFloat;
 
         using var row = ops.Slice(tokensOut, new[] { currentToken }, new[] { currentToken + 1 }, new[] { 1 }, new[] { 1 });
-        using var rowB = ops.Mul(predictability, (TensorFloat)row);
+        using var rowB = ops.Mul(predictability, row as TensorFloat);
         using var probs = ops.Softmax(rowB, 2);
         probs.MakeReadable();
 
@@ -140,25 +144,25 @@ public class RunTinyStories : MonoBehaviour
     {
         var inputTokens = GetTokens(text);
 
-        for(int i = 0; i < inputTokens.Count; i++)
+        for (int i = 0; i < inputTokens.Count; i++)
         {
             outputTokens[i] = inputTokens[i];
         }
         currentToken = inputTokens.Count - 1;
     }
-   
 
-    void LoadVocabulary()
+
+    async void LoadVocabulary()
     {
-        var jsonText = File.ReadAllText(Application.streamingAssetsPath + "/vocab.json");
-        vocab = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, int>>(jsonText);
+        var jsonText = await File.ReadAllTextAsync(Application.streamingAssetsPath + "/vocab.json");
+        vocab = JsonConvert.DeserializeObject<Dictionary<string, int>>(jsonText);
         tokens = new string[vocab.Count];
         foreach (var item in vocab)
         {
             tokens[item.Value] = item.Key;
         }
 
-        merges = File.ReadAllLines(Application.streamingAssetsPath + "/merges.txt");
+        merges = await File.ReadAllLinesAsync(Application.streamingAssetsPath + "/merges.txt");
     }
 
 
@@ -234,16 +238,17 @@ public class RunTinyStories : MonoBehaviour
 
         // Start with a list of single characters
         var inputTokens = new List<string>();
-        foreach(var letter in text)
+        foreach (var letter in text)
         {
             inputTokens.Add(letter.ToString());
         }
 
         ApplyMerges(inputTokens);
 
+
         //Find the ids of the words in the vocab
         var ids = new List<int>();
-        foreach(var token in inputTokens)
+        foreach (var token in inputTokens)
         {
             if (vocab.TryGetValue(token, out int id))
             {
@@ -256,7 +261,7 @@ public class RunTinyStories : MonoBehaviour
 
     void ApplyMerges(List<string> inputTokens)
     {
-        foreach(var merge in merges)
+        foreach (var merge in merges)
         {
             string[] pair = merge.Split(' ');
             int n = 0;

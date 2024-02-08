@@ -26,8 +26,8 @@ namespace Univrse.Demo.NPC
 
             GameManager.Instance.recorder.OnAudioSaved += AnalyzeVoiceMSG;
             GameManager.Instance.speech2Text.OnTranscriptFinished += AnalyzeTranscript;
-            GameManager.Instance.text2Speech.OnClipCreated += Mirror;
             GameManager.Instance.tinyStories.OnStoryFinished += PlayStory;
+            GameManager.Instance.text2Speech.OnClipCreated += Mirror;
 
             isRunning = false;
         }
@@ -46,10 +46,9 @@ namespace Univrse.Demo.NPC
 
         private void AnalyzeTranscript(string voiceTranscript)
         {
-            // if(npcState) GameManager.Instance.npc.OnOrderGiven(voiceTranscript);
-            // if(mirror) GameManager.Instance.text2Speech.GenerateAudioClip(voiceTranscript);
-
-            if(tinyStories) GameManager.Instance.tinyStories.GenerateStory(voiceTranscript);
+            if (npcState) GameManager.Instance.npc.OnOrderGiven(voiceTranscript);
+            if (mirror) PlayStory(voiceTranscript);
+            if (tinyStories) GameManager.Instance.tinyStories.GenerateStory(voiceTranscript);
         }
 
         private void AnalyzeVoiceMSG(string audiofile_path)
@@ -93,7 +92,7 @@ namespace Univrse.Demo.NPC
 
             timeout += Time.deltaTime;
 
-            if (timeout >= GameManager.Instance.recorder.recordTime) SendVoiceMessage();
+            if (timeout >= GameManager.Instance.recorder.defaultRecordTime) SendVoiceMessage();
 
         }
 
@@ -102,6 +101,7 @@ namespace Univrse.Demo.NPC
             isRunning = false;
             sendMsg_BTN.onClick.RemoveListener(SendVoiceMessage);
 
+            GameManager.Instance.recorder.recordTime = Mathf.CeilToInt(timeout);
             GameManager.Instance.recorder.SaveWavFile();
         }
     }
