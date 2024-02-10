@@ -29,7 +29,8 @@ namespace Univrse.Demo.NPC
         public bool saveAudio = false;
         public AudioClip generatedAudioClip;
         IWorker engine;
-
+        TensorFloat output;
+        bool waitingReadBack;
         private void Awake()
         {
             tokenizerRunner = new TokenizerRunner();
@@ -66,19 +67,16 @@ namespace Univrse.Demo.NPC
             var inputShape = new TensorShape(inputValues.Length);
             using var input = new TensorInt(inputShape, inputValues);
 
-            // Setup engine of given worker type and model.
+            // Setup engine of given worker type and model
             engine = WorkerFactory.CreateWorker(backendType, model);
-            engine.SetInput("text", input);
-            engine.Execute();
+            // engine.SetInput("text", input);
+            engine.Execute(input);
 
             // Get output and cast to the appropriate tensor type (e.g. TensorFloat).
-            var output = engine.PeekOutput() as TensorFloat;
+            output = engine.PeekOutput() as TensorFloat;
 
-            generatedAudioClip = CovertToAudioClip(output);
-            if (saveAudio) SaveToStreamingAssets(generatedAudioClip);
-            else OnClipCreated?.Invoke(Path.Combine(Application.streamingAssetsPath, "output.wav"));
-
-            Debug.Log("Success!");
+            // generatedAudioClip = CovertToAudioClip(output);
+            output.AsyncReadbackRequest(ReadbackCallback);
         }
 
         private void RemoveLayersAfterLayer(Model model, string layerName)
@@ -99,18 +97,26 @@ namespace Univrse.Demo.NPC
                 Debug.LogError("Layer not found.");
             }
         }
-
-        private AudioClip CovertToAudioClip(TensorFloat output)
+        void ReadbackCallback(bool completed)
         {
-            output.MakeReadable();
+            Debug.Log("Read is completed. Data is in CPU already.");
+            // The call to `MakeReadable` will no longer block with a readback as the data is already on the CPU
+            // output.MakeReadable();
+            // The output tensor is now in a readable state on the CPU
 
             // Convert TensorFloat to AudioClip and save as WAV file.
-            float[] audioData = output.ToReadOnlyArray();
+            // float[] audioData = output.ToReadOnlyArray();
             // Set the sample rate according to your Text To Speech model.
-            int sampleRate = 22050;
-            AudioClip audioClip = AudioClip.Create("TTSOutput", audioData.Length, 1, sampleRate, false);
-            audioClip.SetData(audioData, 0);
-            return audioClip;
+            // int sampleRate = 22050;
+            // generatedAudioClip = AudioClip.Create("TTSOutput", audioData.Length, 1, sampleRate, false);
+            // generatedAudioClip.SetData(audioData, 0);
+
+            // if (saveAudio) SaveToStreamingAssets(generatedAudioClip);
+            // else OnClipCreated?.Invoke(Path.Combine(Application.streamingAssetsPath, "output.wav"));
+
+            Debug.Log("Success!");
+
+            waitingReadBack = false;
         }
 
         private async void SaveToStreamingAssets(AudioClip audioClip)

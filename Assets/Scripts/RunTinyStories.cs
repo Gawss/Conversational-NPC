@@ -69,6 +69,7 @@ public class RunTinyStories : MonoBehaviour
     Dictionary<string, int> vocab;
 
     public Action<string> OnStoryFinished;
+    TensorFloat probs;
 
     void Start()
     {
@@ -103,18 +104,17 @@ public class RunTinyStories : MonoBehaviour
         }
     }
 
-    void RunInference()
+    bool waitingReadback;
+
+    void ReadbackCallback(bool completed)
     {
-        Debug.Log("Running inference...");
-        using var tokensSoFar = new TensorInt(new TensorShape(1, maxTokens), outputTokens);
-        engine.Execute(tokensSoFar);
+        if (!completed) return;
 
-        var tokensOut = engine.PeekOutput() as TensorFloat;
+        Debug.Log("Tiny Stories: ReadBack completed.");
 
-        using var row = ops.Slice(tokensOut, new[] { currentToken }, new[] { currentToken + 1 }, new[] { 1 }, new[] { 1 });
-        using var rowB = ops.Mul(predictability, row as TensorFloat);
-        using var probs = ops.Softmax(rowB, 2);
+        // The call to `MakeReadable` will no longer block with a readback as the data is already on the CPU
         probs.MakeReadable();
+        // The output tensor is now in a readable state on the CPU
 
         int ID = SelectRandomToken(probs.ToReadOnlyArray());
 
@@ -136,7 +136,25 @@ public class RunTinyStories : MonoBehaviour
         }
         else outputString += GetUnicodeText(tokens[ID]);
 
+        waitingReadback = false;
+    }
 
+    void RunInference()
+    {
+        Debug.Log("Running inference...");
+        if (waitingReadback) return;
+
+        using var tokensSoFar = new TensorInt(new TensorShape(1, maxTokens), outputTokens);
+        engine.Execute(tokensSoFar);
+
+        var tokensOut = engine.PeekOutput() as TensorFloat;
+
+        using var row = ops.Slice(tokensOut, new[] { currentToken }, new[] { currentToken + 1 }, new[] { 1 }, new[] { 1 });
+        using var rowB = ops.Mul(predictability, row as TensorFloat);
+        probs = ops.Softmax(rowB, 2);
+
+        probs.AsyncReadbackRequest(ReadbackCallback);
+        waitingReadback = true;
     }
 
 

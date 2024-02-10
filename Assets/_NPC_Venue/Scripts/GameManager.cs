@@ -24,9 +24,9 @@ namespace Univrse.Demo.NPC
 
         public NPC npc;
         public AudioRecorder recorder;
-        public RunWhisper speech2Text;
-        public RunTinyStories tinyStories;
+        public AsyncSpeech2Text speech2Text;
+        public AsyncTinyStories tinyStories;
         public SentenceSimilarity sentenceSimilarity;
-        public Text2Speech text2Speech;
+        public MetaTTS metaTTS;
     }
 }

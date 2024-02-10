@@ -94,17 +94,6 @@ namespace Univrse.Demo.NPC
             Utility(tuple_.Item2, tuple_.Item1);
         }
 
-        public void Talk(string audioClipPath)
-        {
-            if (GameManager.Instance.text2Speech.saveAudio) StartCoroutine(RequestAudiofile(audioClipPath));
-            else
-            {
-                audioClip = GameManager.Instance.text2Speech.generatedAudioClip;
-                audioSource.clip = audioClip;
-                audioSource.Play();
-            }
-        }
-
         AudioClip audioClip;
         [SerializeField] private AudioSource audioSource;
 

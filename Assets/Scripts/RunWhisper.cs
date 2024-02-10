@@ -8,6 +8,7 @@ using System.Text;
 using UnityEngine.Networking;
 using System;
 using System.Threading.Tasks;
+using Unity.VisualScripting.FullSerializer;
 
 /*
  *              Whisper Inference Code
@@ -75,6 +76,8 @@ public class RunWhisper : MonoBehaviour
     Model decoder;
     Model encoder;
     Model spectro;
+
+    TensorInt tokensPredictions;
 
     private void Start()
     {
@@ -192,30 +195,65 @@ public class RunWhisper : MonoBehaviour
             decoderEngine.Execute(inputs);
             var tokensOut = decoderEngine.PeekOutput() as TensorFloat;
 
-            using var tokensPredictions = ops.ArgMax(tokensOut, 2, false);
-            tokensPredictions.MakeReadable();
+            tokensPredictions = ops.ArgMax(tokensOut, 2, false);
+            // tokensPredictions.MakeReadable();
+            transcribe = false;
+            tokensPredictions.AsyncReadbackRequest(ReadbackCallback);
 
-            int ID = tokensPredictions[currentToken];
+            // int ID = tokensPredictions[currentToken];
 
-            outputTokens[++currentToken] = ID;
+            // outputTokens[++currentToken] = ID;
 
-            if (ID == END_OF_TEXT)
-            {
-                transcribe = false;
-                Debug.Log($"Transcript Done -> (time={(ID - START_TIME) * 0.02f})");
-            }
-            else if (ID >= tokens.Length)
-            {
-                Debug.Log("Whisper finished: " + outputString);
-                OnTranscriptFinished?.Invoke(outputString);
+            // if (ID == END_OF_TEXT)
+            // {
+            //     transcribe = false;
+            //     Debug.Log($"Transcript Done -> (time={(ID - START_TIME) * 0.02f})");
+            // }
+            // else if (ID >= tokens.Length)
+            // {
+            //     Debug.Log("Whisper finished: " + outputString);
+            //     OnTranscriptFinished?.Invoke(outputString);
 
-                outputString += $"(time={(ID - START_TIME) * 0.02f})";
+            //     outputString += $"(time={(ID - START_TIME) * 0.02f})";
 
-            }
-            else outputString += GetUnicodeText(tokens[ID]);
+            // }
+            // else outputString += GetUnicodeText(tokens[ID]);
 
             // Debug.Log(outputString);
         }
+    }
+
+    void ReadbackCallback(bool completed)
+    {
+        if (!completed) return;
+
+        Debug.Log("Whisper: ReadBack completed");
+
+        // The call to `MakeReadable` will no longer block with a readback as the data is already on the CPU
+        tokensPredictions.MakeReadable();
+        // The output tensor is now in a readable state on the CPU
+
+        int ID = tokensPredictions[currentToken];
+
+        outputTokens[++currentToken] = ID;
+
+        if (ID == END_OF_TEXT)
+        {
+            transcribe = false;
+            Debug.Log($"Transcript Done -> (time={(ID - START_TIME) * 0.02f})");
+            return;
+        }
+        else if (ID >= tokens.Length)
+        {
+            Debug.Log("Whisper finished: " + outputString);
+            OnTranscriptFinished?.Invoke(outputString);
+
+            outputString += $"(time={(ID - START_TIME) * 0.02f})";
+
+        }
+        else outputString += GetUnicodeText(tokens[ID]);
+
+        transcribe = true;
     }
 
     // Translates encoded special characters to Unicode

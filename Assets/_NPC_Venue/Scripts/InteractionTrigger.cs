@@ -27,7 +27,6 @@ namespace Univrse.Demo.NPC
             GameManager.Instance.recorder.OnAudioSaved += AnalyzeVoiceMSG;
             GameManager.Instance.speech2Text.OnTranscriptFinished += AnalyzeTranscript;
             GameManager.Instance.tinyStories.OnStoryFinished += PlayStory;
-            GameManager.Instance.text2Speech.OnClipCreated += Mirror;
 
             isRunning = false;
         }
@@ -36,12 +35,7 @@ namespace Univrse.Demo.NPC
         {
             string filtered = Regex.Replace(story, "[^0-9A-Za-z _.!-]", "");
             Debug.Log(filtered);
-            GameManager.Instance.text2Speech.GenerateAudioClip(filtered);
-        }
-
-        private void Mirror(string audioClipPath)
-        {
-            GameManager.Instance.npc.Talk(audioClipPath);
+            GameManager.Instance.metaTTS.SpeakClick(story);
         }
 
         private void AnalyzeTranscript(string voiceTranscript)
@@ -53,7 +47,7 @@ namespace Univrse.Demo.NPC
 
         private void AnalyzeVoiceMSG(string audiofile_path)
         {
-            GameManager.Instance.speech2Text.AudioClip2String(audiofile_path);
+            GameManager.Instance.speech2Text.RunModel(audiofile_path);
         }
 
         private void OnDisable()
@@ -61,7 +55,6 @@ namespace Univrse.Demo.NPC
             wakeNPC_BTN.onClick.RemoveListener(StartExperience);
             GameManager.Instance.recorder.OnAudioSaved -= AnalyzeVoiceMSG;
             GameManager.Instance.speech2Text.OnTranscriptFinished -= AnalyzeTranscript;
-            GameManager.Instance.text2Speech.OnClipCreated -= Mirror;
             GameManager.Instance.tinyStories.OnStoryFinished -= PlayStory;
         }
 
