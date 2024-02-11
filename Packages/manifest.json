@@ -2,9 +2,10 @@
   "dependencies": {
     "com.huggingface.sharp-transformers": "https://github.com/huggingface/sharp-transformers.git",
     "com.meta.xr.sdk.voice": "60.0.0",
+    "com.readyplayerme.core": "https://github.com/readyplayerme/rpm-unity-sdk-core.git",
+    "com.readyplayerme.webview": "https://github.com/readyplayerme/rpm-unity-sdk-webview.git#v2.1.3",
     "com.unity.collab-proxy": "2.2.0",
     "com.unity.feature.development": "1.0.1",
-    "com.unity.scripting.python": "7.0.1",
     "com.unity.sentis": "1.2.0-exp.2",
     "com.unity.shadergraph": "14.0.9",
     "com.unity.textmeshpro": "3.0.6",

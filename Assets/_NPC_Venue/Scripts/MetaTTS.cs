@@ -13,6 +13,8 @@ namespace Univrse.Demo.NPC
         [SerializeField] private string _dateId = "[DATE]";
         public string message;
 
+        public Action OnSpeakEnd;
+
         // Speak phrase click
         public void SpeakClick(string _msg = null)
         {
@@ -20,6 +22,11 @@ namespace Univrse.Demo.NPC
             string phrase = FormatText(_msg != null ? _msg : message);
 
             StartCoroutine(SpeakAsync(phrase));
+        }
+
+        public void PlayAsyncClip()
+        {
+            if (_asyncClip != null) _speaker.AudioSource.PlayOneShot(_asyncClip);
         }
 
         private IEnumerator SpeakAsync(string phrase)
@@ -32,6 +39,8 @@ namespace Univrse.Demo.NPC
             {
                 _speaker.AudioSource.PlayOneShot(_asyncClip);
             }
+
+            OnSpeakEnd?.Invoke();
         }
 
         // Format text with current datetime

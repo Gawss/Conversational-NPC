@@ -30,8 +30,16 @@ namespace Univrse.Demo.NPC
             Debug.Log("Recording...");
         }
 
+        public void StopRecording()
+        {
+            isRecording = false;
+            if (Microphone.IsRecording(mic)) Microphone.End(mic);
+        }
+
         public async void SaveWavFile()
         {
+            if (!isRecording) return;
+
             isRecording = false;
             if (Microphone.IsRecording(mic))
             {

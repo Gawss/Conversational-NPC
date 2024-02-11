@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using ReadyPlayerMe.Core;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -42,6 +43,12 @@ namespace Univrse.Demo.NPC
         [HideInInspector]
         public float maxScore;
         public int maxScoreIndex;
+
+        [SerializeField] private VoiceHandler voiceHandler;
+
+        [Header("Audioclips")]
+        public AudioClip intro_audioclip;
+        public AudioClip[] hello_audioclips;
 
 
         private void Awake()
@@ -95,7 +102,33 @@ namespace Univrse.Demo.NPC
         }
 
         AudioClip audioClip;
-        [SerializeField] private AudioSource audioSource;
+        public AudioSource audioSource;
+        [SerializeField] private Animator animator;
+        public bool isTalking;
+
+        public void Talk(bool value, bool waitEnd = false)
+        {
+            animator.SetBool("isTalking", value);
+            isTalking = value;
+
+            if (waitEnd) StartCoroutine(WaitForClipToFinish(audioSource.clip.length));
+
+        }
+
+        private IEnumerator WaitForClipToFinish(float clipLength)
+        {
+            yield return new WaitForSeconds(clipLength);
+            animator.SetBool("isTalking", false);
+            isTalking = false;
+        }
+
+        private void Update()
+        {
+            if (!animator.GetBool("isTalking")) return;
+
+            if (!audioSource.isPlaying) animator.SetLayerWeight(1, Mathf.Lerp(animator.GetLayerWeight(1), 1f, Time.deltaTime * 3f));
+            else animator.SetLayerWeight(1, Mathf.Lerp(animator.GetLayerWeight(1), 0f, Time.deltaTime * 3f));
+        }
 
         public IEnumerator RequestAudiofile(string audioclipPath)
         {
