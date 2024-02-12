@@ -4,7 +4,10 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/_NPC_Venue/Scenes/NPC_VenueXR.unity
+    guid: e7e78efa8eb186943b88c96f723cb678
   m_configObjects:
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: e8443df9e2d8a4e42b08ea154ac575bc, type: 2}
     com.unity.xr.openxr.settings4: {fileID: 11400000, guid: ace6f837fdb7cc848bc0efb80f041eee, type: 2}
